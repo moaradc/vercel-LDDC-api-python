@@ -32,7 +32,6 @@ def get_win_path(csidl: int) -> Path:
 
 match platform.system():
     case "Linux":
-        home = Path.home()
         if "ANDROID_ARGUMENT" in os.environ or "P4A_BOOTSTRAP" in os.environ:
             # Android
             from android.storage import app_storage_path, primary_external_storage_path  # type: ignore[]
@@ -54,12 +53,6 @@ match platform.system():
             cache_dir = home / ".cache" / "LDDC"
             log_dir = data_dir / "logs"
             default_save_lyrics_dir = home / "Documents" / "Lyrics"
-        # XDG Base Directory
-        config_dir = home / ".config" / "LDDC"
-        data_dir = home / ".local" / "share" / "LDDC"
-        cache_dir = home / ".cache" / "LDDC"
-        log_dir = data_dir / "logs"
-        default_save_lyrics_dir = home / "Documents" / "Lyrics"
     case "Darwin":  # macOS
         home = Path.home()
 
@@ -83,11 +76,31 @@ auto_save_dir = data_dir / "auto_save"
 
 
 def create_directories(dirs: list[Path]) -> None:
+    """创建目录，如果已经存在则忽略"""
     for directory in dirs:
-        directory.mkdir(parents=True, exist_ok=True)
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+        except (OSError, PermissionError):
+            # 如果是无服务器环境，跳过目录创建
+            if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+                print(f"Info: Skipping directory creation in serverless environment: {directory}")
+                continue
+            raise
 
 
-create_directories([config_dir, data_dir, cache_dir, log_dir, auto_save_dir])
+# 只在非无服务器环境中创建目录
+if not (os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME')):
+    create_directories([config_dir, data_dir, cache_dir, log_dir, auto_save_dir])
+else:
+    # 在无服务器环境中，使用临时目录
+    import tempfile
+    temp_base = Path(tempfile.gettempdir()) / "LDDC"
+    config_dir = temp_base / "config"
+    data_dir = temp_base / "data"
+    cache_dir = temp_base / "cache"
+    log_dir = temp_base / "logs"
+    auto_save_dir = data_dir / "auto_save"
+    default_save_lyrics_dir = temp_base / "Documents" / "Lyrics"
 
 if running_lddc:
     info_path = data_dir / "info.json"
@@ -105,8 +118,13 @@ def __update_info() -> None:
         "version": __version__,
         "Command Line": command_line,
     }
-    with info_path.open("w", encoding="utf-8") as f:
-        json.dump(info, f, ensure_ascii=False)
+    try:
+        with info_path.open("w", encoding="utf-8") as f:
+            json.dump(info, f, ensure_ascii=False)
+    except (OSError, PermissionError):
+        # 在无服务器环境中可能无法写入，静默失败
+        if not (os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME')):
+            raise
 
 
 if running_lddc:

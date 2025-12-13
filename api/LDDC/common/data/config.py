@@ -64,7 +64,7 @@ class Config(dict):
 
             "multi_search_sources": ["QM", "KG", "NE"],
 
-            "langs_order": ["roma", "orig", "ts"],
+            "langs_order": ["orig", "ts", "roma"],
             "skip_inst_lyrics": True,
             "auto_select": True,
             "add_end_timestamp_line": False,

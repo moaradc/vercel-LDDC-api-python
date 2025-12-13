@@ -2,4 +2,5 @@ flask
 diskcache
 pyaes
 httpx[brotli,http2]
+requests
 # charset_normalizer
